@@ -1,7 +1,8 @@
-/* FILE: func_gauss_extraparams.cpp ------------------------------------ */
+/* FILE: func_nuker.cpp ------------------------------------------------ */
 /* 
- *   This is the base class for the various function object classes.
- *   It really shouldn't be instantiated by itself.
+ *
+ *   Function object class for a Nuker-law function, with constant
+ * ellipticity and position angle (pure elliptical, not generalized).
  *   
  *   BASIC IDEA:
  *      Setup() is called as the first part of invoking the function;
@@ -13,9 +14,14 @@
  *      GetValue() to compute the function results for each pixel coordinate
  *      (x,y).
  *
+ *   NOTE: Currently, we assume input PA is in *degrees* [and then we
+ * convert it to radians] relative to +x axis.
+ *
+ *   MODIFICATION HISTORY:
+ *     [v0.1]: 20 April 2023: Created (as modification of func_sersic.cpp.
  */
 
-// Copyright 2009--2023 by Peter Erwin.
+// Copyright 2023 by Peter Erwin.
 // 
 // This file is part of Imfit.
 // 
@@ -33,98 +39,70 @@
 // with Imfit.  If not, see <http://www.gnu.org/licenses/>.
 
 
+
 /* ------------------------ Include Files (Header Files )--------------- */
 #include <math.h>
 #include <stdio.h>
 #include <string.h>
-#include <stdlib.h>
 #include <string>
-#include <map>
+#include <algorithm>
 
-#include "utilities_pub.h"
-#include "func_gauss_extraparams.h"
+#include "func_nuker.h"
+// #include "helper_funcs.h"
 
 using namespace std;
 
 
 /* ---------------- Definitions ---------------------------------------- */
-const int  N_PARAMS = 4;
-const char  PARAM_LABELS[][20] = {"PA", "ell", "I_0", "sigma"};
-const char  FUNCTION_NAME[] = "Elliptical Gaussian function [test ExtraParams version]";
-const double PI = 3.14159265358979;
+const int  N_PARAMS = 7;
+const char  PARAM_LABELS[][20] = {"PA", "ell", "I_b", "r_b", "alpha", "beta", "gamma"};
+const char  PARAM_UNITS[][30] = {"deg (CCW from +y axis)", "", "counts/pixel",
+								"pixels", "", "", ""};
+const char  FUNCTION_NAME[] = "NukerLaw function";
 const double  DEG2RAD = 0.017453292519943295;
 const int  SUBSAMPLE_R = 10;
 
-const char GaussianExtraParams::className[] = "GaussianExtraParams";
+const char NukerLaw::className[] = "NukerLaw";
+
+// The following is the minimum allowable value of r, meant to
+// avoid blowups due to the fact that the inner, power-law part of the
+// Nuker-Law function becomes infinite at r = 0.
+const double  R_MIN = 0.001;
 
 
 /* ---------------- CONSTRUCTOR ---------------------------------------- */
 
-GaussianExtraParams::GaussianExtraParams( )
+NukerLaw::NukerLaw( )
 {
-  string  paramName;
-  nParams = N_PARAMS;
   
+  nParams = N_PARAMS;
   functionName = FUNCTION_NAME;
-  shortFunctionName = className;   // defined in header file
+  shortFunctionName = className;
 
-  // Set up the vector of parameter labels
+  // Set up vectors of parameter labels and units
   for (int i = 0; i < nParams; i++) {
-    paramName = PARAM_LABELS[i];
-    parameterLabels.push_back(paramName);
+    parameterLabels.push_back(PARAM_LABELS[i]);
+    parameterUnits.push_back(PARAM_UNITS[i]);
   }
+  parameterUnitsExist = true;
   
   doSubsampling = true;
-  floorValue = 0.0;
-}
-
-
-/* ---------------- PUBLIC METHOD: HasExtraParams ---------------------- */
-
-bool GaussianExtraParams::HasExtraParams( )
-{
-  return true;
-}
-
-
-/* ---------------- PUBLIC METHOD: SetExtraParams ---------------------- */
-// Returns -1 if map is empty, 0 if map is not empty but no valid parameter
-// name is found. If map has valid parameter name, returns 1 if parameter
-// value is OK, -3 if not.
-int GaussianExtraParams::SetExtraParams( map<string,string>& inputMap )
-{
-  // check for empty map
-  if (inputMap.empty()) {
-    printf("   GaussianExtraParams::SetExtraParams: input map is empty!\n");
-    return -1;
-  }
-  // only one possible parameter for this function, so no need to loop
-  map<string,string>::iterator iter;
-  for( iter = inputMap.begin(); iter != inputMap.end(); iter++) {
-    if (iter->first == "floor") {
-      if (IsNumeric(iter->second.c_str())) {
-        floorValue = strtod(iter->second.c_str(), NULL);
-        printf("   GaussianExtraParams::SetExtraParams -- setting floor = %f\n", floorValue);
-        extraParamsSet = true;
-        return 1;
-      } else
-        return -3;
-    }
-  }
-  return 0;
 }
 
 
 /* ---------------- PUBLIC METHOD: Setup ------------------------------- */
 
-void GaussianExtraParams::Setup( double params[], int offsetIndex, double xc, double yc )
+void NukerLaw::Setup( double params[], int offsetIndex, double xc, double yc )
 {
   x0 = xc;
   y0 = yc;
   PA = params[0 + offsetIndex];
   ell = params[1 + offsetIndex];
-  I_0 = params[2 + offsetIndex];
-  sigma = params[3 + offsetIndex];
+  I_b = params[2 + offsetIndex ];
+  r_b = params[3 + offsetIndex ];
+  alpha = params[4 + offsetIndex ];
+  beta = params[5 + offsetIndex ];
+  gamma = params[6 + offsetIndex ];
 
   // pre-compute useful things for this round of invoking the function
   q = 1.0 - ell;
@@ -132,20 +110,29 @@ void GaussianExtraParams::Setup( double params[], int offsetIndex, double xc, do
   PA_rad = (PA + 90.0) * DEG2RAD;
   cosPA = cos(PA_rad);
   sinPA = sin(PA_rad);
-  twosigma_squared = 2.0 * sigma*sigma;
+
+  exponent = (beta - gamma)/alpha;
+  Iprime = I_b * pow(2.0, exponent);
 }
 
 
 /* ---------------- PRIVATE METHOD: CalculateIntensity ----------------- */
-// This function calculates the intensity for a Gaussian function at radius r,
+// This function calculates the intensity for a Nuker-law function at radius r,
 // with the various parameters and derived values pre-calculated by Setup().
 
-double GaussianExtraParams::CalculateIntensity( double r )
+double NukerLaw::CalculateIntensity( double r )
 {
-  double  r_squared = r*r;
+  double  I1, I2;
   
-  return I_0 * exp(-r_squared/twosigma_squared) + floorValue;
+  // kludge to handle cases when r is very close to zero:
+  if (r < R_MIN)
+    r = R_MIN;
+
+  I1 = Iprime * pow(r_b/r, gamma);
+  I2 = pow((1.0 + pow(r/r_b, alpha)), -exponent);
+  return (I1*I2);
 }
+
 
 
 /* ---------------- PUBLIC METHOD: GetValue ---------------------------- */
@@ -154,7 +141,7 @@ double GaussianExtraParams::CalculateIntensity( double r )
 // is turned on). The CalculateIntensity() function is called for the actual
 // intensity calculation.
 
-double GaussianExtraParams::GetValue( double x, double y )
+double NukerLaw::GetValue( double x, double y )
 {
   double  x_diff = x - x0;
   double  y_diff = y - y0;
@@ -198,41 +185,22 @@ double GaussianExtraParams::GetValue( double x, double y )
 /* ---------------- PROTECTED METHOD: CalculateSubsamples ------------------------- */
 // Function which determines the number of pixel subdivisions for sub-pixel integration,
 // given that the current pixel is a distance of r away from the center of the
-// Gaussian function.
+// Nuker-law function.
 // This function returns the number of x and y subdivisions; the total number of subpixels
 // will then be the return value *squared*.
-int GaussianExtraParams::CalculateSubsamples( double r )
+int NukerLaw::CalculateSubsamples( double r )
 {
   int  nSamples = 1;
   
   if ((doSubsampling) && (r < 10.0)) {
-    if ((sigma <= 1.0) && (r <= 1.0))
-      nSamples = min(100, (int)(4 * SUBSAMPLE_R / sigma));
-    else {
-      if (r <= 3.0)
-        nSamples = 2 * SUBSAMPLE_R;
-      else
-        nSamples = min(100, (int)(2 * SUBSAMPLE_R / r));
-    }
+    if (r <= 4.0)
+      nSamples = 2 * SUBSAMPLE_R;
+    else
+      nSamples = min(100, (int)(2 * SUBSAMPLE_R / r));
   }
   return nSamples;
 }
 
 
-/* ---------------- PUBLIC METHOD: CanCalculateTotalFlux --------------- */
 
-bool GaussianExtraParams::CanCalculateTotalFlux( )
-{
-  return true;
-}
-
-
-/* ---------------- PUBLIC METHOD: TotalFlux --------------------------- */
-
-double GaussianExtraParams::TotalFlux( )
-{
-  return (1.0 - ell)*2.0*PI*I_0*sigma*sigma;
-}
-
-
-/* END OF FILE: func_gauss_extraparams.cpp ----------------------------- */
+/* END OF FILE: func_nuker.cpp ----------------------------------------- */

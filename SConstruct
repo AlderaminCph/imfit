@@ -21,9 +21,6 @@
 # To build a version *without* OpenMP enabled
 #    $ scons --no-openmp <target-name>
 #
-# To build a version *without* FFTW threading:
-#    $ scons --no-threading <target-name>
-#
 #
 # To build a version using non-default compiler:
 #    $ scons --cc=<C_COMPILER> --cpp=<C++_COMPILE> <target-name>
@@ -51,7 +48,7 @@
 # etc.
 
 
-# Copyright 2010--2022 by Peter Erwin.
+# Copyright 2010--2023 by Peter Erwin.
 # 
 # This file is part of Imfit.
 # 
@@ -69,8 +66,7 @@
 # with Imfit.  If not, see <http://www.gnu.org/licenses/>.
 
 
-import os, subprocess, platform, getpass, pwd
-
+import os, subprocess, platform, getpass, pwd, copy
 
 def GetLinuxType():
     txt = subprocess.check_output("hostnamectl")
@@ -90,19 +86,61 @@ linux_type = None
 # possible values: "Ubuntu", "CentOS", ...
 if os_type == "Linux":
     linux_type = GetLinuxType()
+    usingAppleSilicon = False
+else:   # assuming Darwin/macos
+    proctype = platform.processor()
+    if proctype == "arm":
+        usingAppleSilicon = True
+    else:
+        usingAppleSilicon = False
 
-# specialized for running on Intel processors; set this to False
-# if compiling for arm64 (e.g. Apple Silicon/M1) or if compiling
-# x86-64 code to run under macOS Rosetta2 on Apple Silicon/M1
-useVectorExtensions = True
+def GetXCodeVersion():
+    """Attempts to determine XCode version (e.g., 15.0) by parsing output of
+    "clang --version".
+    """
+    result = subprocess.run("clang --version", capture_output=True, shell=True)
+    pp = result.stdout.split()
+    pp_str = [pp[i].decode() for i in range(4)]
+    if pp_str[0:3] == ["Apple", "clang", "version"]:
+        version_str = pp_str[3]
+        ppp = version_str.split(".")
+        version_num = float(ppp[0] + "." + ppp[1])
+        return version_num
+    else:
+        print("WARNING: Unable to determine clang version!")
+        return None
+
+
+# the following is our default for Linux *and* macOS-Intel
+include_path_base = [".", "/usr/local/include"]
+
+if usingAppleSilicon:
+    useVectorExtensions = False
+    # assuming arm64 binaries and libraries from Homebrew
+    compiler_path = ['/bin', '/usr/bin', '/opt/homebrew/bin']
+    lib_path = ["/opt/homebrew/lib"]
+    MAC_STATIC_LIBS_PATH = "/opt/homebrew/lib/"
+    LOCAL_STATIC_LIBS_PATH = "/Users/erwin/coding/imfit/static_libs/arm64/"
+    # kludgey solution for compiling on Apple Silicon (Homebrew Apple Silicon
+    # distribution of nlopt does *not* include static libraries)
+    STATIC_NLOPT_LIBRARY_FILE = File("/Users/erwin/coding/imfit/static_libs/arm64/libnlopt.a")
+    include_path_base = [".", "/opt/homebrew/include/"]
+else:   # Intel
+    useVectorExtensions = True
+    # assuming x86-64 binaries and libraries from Homebrew
+    compiler_path = ['/bin', '/usr/bin', '/usr/local/bin']
+    lib_path = ["/usr/local/lib"]
+    MAC_STATIC_LIBS_PATH = "/usr/local/lib/"
+    LOCAL_STATIC_LIBS_PATH = "/Users/erwin/coding/imfit/static_libs/x86-64/"
+    STATIC_NLOPT_LIBRARY_FILE = File("/Users/erwin/coding/imfit/static_libs/x86-64/libnlopt.a")
 
 
 # LIBRARIES:
 # m
 # pthread [Linux]
 # dl [Linux, if using loguru for g]
-# cfitsio
-#   -- if static, then on macOS we must link with curl [part of system]
+# cfitsio (v4.0 and later)
+#   -- if static, then on macOS we must link with curl AND zlib [part of system]
 #   -- for Linux, we use our compiled static-library version of cfitsio
 #      (not Ubuntu's), so we don't need any extra libraries
 # fftw3, fftw3_threads
@@ -124,11 +162,10 @@ useVectorExtensions = True
 
 # We assume that FFTW library is static-only (since that's the default installation).
 
-MAC_STATIC_LIBS_PATH = "/usr/local/lib/"
 # Debian/Ubuntu standard x86-64 package installation path
 LINUX_UBUNTU_STATIC_LIBS_PATH = "/usr/local/lib/"
 libDirs = {"Darwin": MAC_STATIC_LIBS_PATH, "Linux": LINUX_UBUNTU_STATIC_LIBS_PATH}
-extraSharedLibs_static_cfitsio = {"Darwin": ["curl"], "Linux": []}
+extraSharedLibs_static_cfitsio = {"Darwin": ["curl", "z"], "Linux": []}
 
 BASE_SHARED_LIBS = ["m"]
 if os_type == "Linux":
@@ -157,8 +194,8 @@ STATIC_GSL_LIBRARY_FILE2 = File(libDirs[os_type] + "libgslcblas.a")
 
 # the following is for when we want to force static linking to the NLopt library
 # (Change these if the locations are different on your system)
-STATIC_NLOPT_LIBRARY_FILE = File(libDirs[os_type] + "libnlopt.a")
-STATIC_NLOPT_LIBRARY_FILE_MACOSX_NOTHREADLOCAL = File("/Users/erwin/coding/imfit/static_libs/nlopt_nothreadlocal/libnlopt.a")
+if os_type == "Linux":
+    STATIC_NLOPT_LIBRARY_FILE = File(libDirs[os_type] + "libnlopt.a")
 
 
 
@@ -171,16 +208,6 @@ CDREAM_SUBDIR = "cdream/"
 CDREAM_INCLUDE_SUBDIR = CDREAM_SUBDIR + "include/"
 PROFILEFIT_SUBDIR = "profile_fitting/"
 
-BAD_OPENMP_COMPILER_WARNING = """
-*** WARNING: You appear to be trying to compile with OpenMP support under macOS 
-while using Apple's (Xcode) clang++, which does NOT support OpenMP.
-(Note that clang++ may be aliased on a macOS system as /usr/bin/g++.)
-
-Either go ahead and compile without OpenMP by calling scons with the --no-openmp 
-flag, or (ideally) use a different compiler (e.g., GCC, or a version of Clang/LLVM
-with OpenMP support).
-"""
-
 
 # *** Set up compiler flags, library lists, include paths
 
@@ -190,11 +217,17 @@ with OpenMP support).
 #    AVX2  is supported on Intel Haswell and later processors (mostly 2014 onward)
 #    AVX-512  is supported only on "Knights Landing" Xeon Phi processors (2016 onward)
 
-cflags_opt = ["-O3", "-g0", "-fPIC", "-std=c++17"]
+
+cflags_opt = ["-O3", "-g0", "-fPIC", "-std=c++11"]
+if os_type == "Darwin":
+    cflags_opt.append("-mmacosx-version-min=10.13")
+
 if useVectorExtensions:
     cflags_opt.append("-msse2")
 cflags_db = ["-Wall", "-g3", "-O0", "-fPIC", "-std=c++17", "-Wshadow", 
                 "-Wredundant-decls", "-Wpointer-arith"]
+# the following will probably be appended to multiple times
+link_flags = []
 
 base_defines = ["ANSI", "USING_SCONS"]
 
@@ -204,14 +237,20 @@ lib_list = BASE_SHARED_LIBS
 lib_list_1d = ["fftw3", "fftw3_threads", "m"]
 
 
-include_path = [".", "/usr/local/include", CORE_SUBDIR, SOLVER_SUBDIR, CDREAM_SUBDIR,
+include_path = include_path_base + [CORE_SUBDIR, SOLVER_SUBDIR, CDREAM_SUBDIR,
                 CDREAM_INCLUDE_SUBDIR, FUNCTION_SUBDIR, FUNCTION_1D_SUBDIR, PROFILEFIT_SUBDIR]
-lib_path = ["/usr/local/lib"]
-link_flags = []
+
+
+# the following flag ("-ld_classic") is a workaround on macos to use the old linker 
+# instead of the new (in XCode 15) linker, which fails for us (and other people)
+# FIXME: If an updated version of XCode fixes the problem, then we should modify this
+# so it just checks for the specific bad version(s).
+if os_type == "Darwin" and GetXCodeVersion() >= 15:
+    link_flags.append("-ld_classic")
 
 
 # find out what the default compilers (according to SCons) are
-default_environ = DefaultEnvironment()
+default_environ = DefaultEnvironment(ENV = {'PATH' : os.environ['PATH']})
 cc_default = default_environ["CC"]
 cpp_default = default_environ["CXX"]
 CC_COMPILER = cc_default
@@ -221,20 +260,22 @@ cpp_compiler_changed = False
 usingGCC = True
 
 
-# ** Special setup for compilation by P.E. on Mac (assumes GCC v9 is installed and
-# callable via gcc-9 and g++-9)
+# ** Special setup for compilation by P.E. on Mac (assumes GCC v13 is installed and
+# callable via gcc-13 and g++-13)
 # Comment this out otherwise!
 # Note that the following way of determining the username seems to be a bit more 
 # portable than "getpass.getuser()", which fails for "Ubuntu on Windows" (acc. to 
 # Lee Kelvin, who contributed the new version)
 userName = pwd.getpwuid(os.getuid())[0]
 if (os_type == "Darwin") and (userName == "erwin"): 
-    CC_COMPILER = "gcc-11"
-    CPP_COMPILER = "g++-11"
+    CC_COMPILER = "gcc-13"
+    CPP_COMPILER = "g++-13"
     c_compiler_changed = True
     cpp_compiler_changed = True
     usingGCC = True
 
+
+extra_defines = []
 
 # *** System-specific setup
 # if (os_type == "Darwin"):   # OK, we're compiling on macOS (a.k.a. Mac OS X)
@@ -243,15 +284,16 @@ if (os_type == "Darwin") and (userName == "erwin"):
 #   # are 32-bit, use the following
 #   cflags_db = ["-Wall", "-Wshadow", "-Wredundant-decls", "-Wpointer-arith", "-g3"]
 if (os_type == "Linux"):
+    extra_defines.append("LINUX")
     # change the following path definitions as needed
     include_path.append("/usr/include")
     if userName == "erwin":
         include_path.append("/home/erwin/include")
         lib_path.append("/home/erwin/lib")
+else:
+    extra_defines.append("MACOS")
 defines_opt = base_defines
 defines_db = base_defines
-
-extra_defines = []
 
 
 
@@ -275,14 +317,14 @@ setOptToDebug = False
 useLogging = False
 
 # Define some user options
+AddOption("--fftw-path", dest="fftwLibraryPath", type="string", action="store", default=None,
+    help="path to directory containing FFTW libraries")
+AddOption("--fftw-openmp", dest="fftwOpenMP", action="store_true", 
+    default=False, help="compile with OpenMP-threaded FFTW library")
 AddOption("--lib-path", dest="libraryPath", type="string", action="store", default=None,
     help="colon-separated list of additional paths to search for libraries")
 AddOption("--header-path", dest="headerPath", type="string", action="store", default=None,
     help="colon-separated list of additional paths to search for header files")
-AddOption("--no-threading", dest="fftwThreading", action="store_false", 
-    default=True, help="compile programs *without* FFTW threading")
-# AddOption("--no-gsl", dest="useGSL", action="store_false", 
-#     default=True, help="do *not* use GNU Scientific Library")
 AddOption("--no-nlopt", dest="useNLopt", action="store_false", 
     default=True, help="do *not* use NLopt library")
 AddOption("--no-openmp", dest="noOpenMP", action="store_true", 
@@ -372,8 +414,8 @@ if GetOption("useGCC"):
         print("ERROR: You cannot specify both Clang and GCC as the compiler!")
         Exit(2)
     usingGCC = True
-    CC_COMPILER = "gcc-11"
-    CPP_COMPILER = "g++-11"
+    CC_COMPILER = "gcc-13"
+    CPP_COMPILER = "g++-13"
     print("using %s for C compiler" % CC_COMPILER)
     print("using %s for C++ compiler" % CPP_COMPILER)
     c_compiler_changed = True
@@ -401,6 +443,15 @@ if GetOption("useTotalStaticLinking"):
     if usingGCC:
         totalStaticLinking = True
 
+
+# TESTING FFTW
+if GetOption("fftwLibraryPath"):
+    fftwPath = GetOption("fftwLibraryPath") + "/lib/"
+    STATIC_FFTW_LIBRARY_FILE = File(fftwPath + "libfftw3.a")
+    if GetOption("fftwOpenMP"):
+        STATIC_FFTW_THREADED_LIBRARY_FILE = File(fftwPath + "libfftw3_omp.a")
+    else:
+        STATIC_FFTW_THREADED_LIBRARY_FILE = File(fftwPath + "libfftw3_threads.a")
 
 
 # *** Setup for various options (either default, or user-altered)
@@ -430,8 +481,6 @@ else:
     lib_list.append("gslcblas")     
     lib_list_1d.append("gsl")
     lib_list_1d.append("gslcblas")      
-# else:
-#     extra_defines.append("NO_GSL")
 
 if useNLopt:   # default is to do this
     if useStaticLibs:
@@ -471,7 +520,7 @@ if useOpenMP:   # default is to do this (turn this off with "--no-openmp")
         link_flags.append("-Xpreprocessor")
         link_flags.append("-fopenmp")
         if useStaticLibs:
-            link_flags.append("/Users/erwin/coding/imfit/static_libs/libomp.a")
+            link_flags.append(MAC_STATIC_LIBS_PATH + "/libomp.a")
         else:
             # dynamic linking to libomp
             link_flags.append("-lomp")
@@ -493,7 +542,15 @@ if useLogging:
     extra_defines.append(["-DUSE_LOGGING"])
     if os_type == "Linux":
         lib_list.append("dl")
-    
+
+
+# special definitions for compiling libimfit.a
+# (currently useful for turning off signal-handling that catches Ctrl-C, since
+# including that code that causes problems for pyimfit)
+if 'libimfit.a' in COMMAND_LINE_TARGETS:
+    extra_defines.append("NO_SIGNALS")
+
+
 # Add any additional, user-specified preprocessor definitions (e.g., "define=DEBUG")
 for key, value in ARGLIST:
     if key == 'define':
@@ -526,14 +583,21 @@ defines_opt = defines_opt + extra_defines
 
 # *** Create Environments for compilation:
 # "env_debug" is environment with debugging options turned on
-# "env" is an environment for optimized compiling
+# "env" is an environment for optimized compiling (our default)
 
 env = Environment( CC=CC_COMPILER, CXX=CPP_COMPILER, CPPPATH=include_path, LIBS=lib_list, 
                     LIBPATH=lib_path, CCFLAGS=cflags_opt, LINKFLAGS=link_flags, 
-                    CPPDEFINES=defines_opt )
+                    CPPDEFINES=defines_opt, ENV = {'PATH' : os.environ['PATH']} )
 env_debug = Environment( CC=CC_COMPILER, CXX=CPP_COMPILER, CPPPATH=include_path, LIBS=lib_list, 
                     LIBPATH=lib_path, CCFLAGS=cflags_db, LINKFLAGS=link_flags, 
-                    CPPDEFINES=defines_db )
+                    CPPDEFINES=defines_db, ENV = {'PATH' : os.environ['PATH']} )
+lib_list_nofits = copy.copy(lib_list)
+if "nlopt" in lib_list_nofits:
+    lib_list_nofits.remove("nlopt")
+env_debug_nofits = Environment( CC=CC_COMPILER, CXX=CPP_COMPILER, CPPPATH=include_path, 
+                    LIBS=lib_list_nofits, 
+                    LIBPATH=lib_path, CCFLAGS=cflags_db, LINKFLAGS=link_flags, 
+                    CPPDEFINES=defines_db, ENV = {'PATH' : os.environ['PATH']} )
 
 
 # Checks for libraries and headers -- if we're not doing scons -c:
@@ -637,6 +701,12 @@ if useExtraFuncs:
     functionobject_obj_string += " func_exp-higher-mom"
     functionobject_obj_string += " func_nan"
     functionobject_obj_string += " func_simple-checkerboard"
+    functionobject_obj_string += " func_nuker"
+    functionobject_obj_string += " func_sersic_var-ell"
+    functionobject_obj_string += " func_bpbar3d"
+    functionobject_obj_string += " func_double-gaussian"
+    functionobject_obj_string += " func_peanut_shashank"
+    functionobject_obj_string += " func_peanut_shashank_v2"
 # ADD CODE FOR NEW FUNCTIONS HERE
 # (NOTE: be sure to include one or more spaces before the file name!)
 # e.g.,
@@ -663,7 +733,7 @@ cdream_sources = [name + ".cpp" for name in cdream_objs]
 
 # Base files for imfit, makeimage, imfit-mcmc, and libimfit:
 base_obj_string = """mp_enorm statistics mersenne_twister commandline_parser utilities 
-config_file_parser add_functions"""
+config_file_parser add_functions count_cpu_cores"""
 base_objs = [ CORE_SUBDIR + name for name in base_obj_string.split() ]
 # FITS image-file I/O
 image_io_obj_string = "image_io getimages"
@@ -742,7 +812,7 @@ env.Command("alltests", None,
 
 # Build Imfit library
 base_for_lib_objstring = """mp_enorm statistics mersenne_twister utilities 
-config_file_parser add_functions bootstrap_errors"""
+config_file_parser add_functions bootstrap_errors count_cpu_cores"""
 base_for_lib_objs = [ CORE_SUBDIR + name for name in base_for_lib_objstring.split() ]
 libimfit_objs = modelobject_objs + functionobject_objs + solver_objs
 libimfit_objs += base_for_lib_objs
@@ -768,7 +838,8 @@ staticlib = env.StaticLibrary(target="libimfit", source=libimfit_objlist)
 # From here to the end of the file: removed from exported distribution version of SConstruct
 
 env_1d = Environment( CC=CC_COMPILER, CXX=CPP_COMPILER, CPPPATH=include_path, LIBS=lib_list_1d, LIBPATH=lib_path,
-                        CCFLAGS=cflags_db, LINKFLAGS=link_flags, CPPDEFINES=defines_db )
+                        CCFLAGS=cflags_db, LINKFLAGS=link_flags, CPPDEFINES=defines_db,
+                        ENV = {'PATH' : os.environ['PATH']} )
 
 # ModelObject1d and related classes:
 # (Note that model_object includes references to oversampled_region and downsample,
@@ -793,7 +864,7 @@ functionobject1d_sources = [name + ".cpp" for name in functionobject1d_objs]
 # Base files for profilefit:
 profilefit_base_obj_string = """core/commandline_parser core/utilities profile_fitting/read_profile 
         core/config_file_parser core/print_results profile_fitting/add_functions_1d core/convolver 
-        core/mp_enorm core/statistics core/mersenne_twister 
+        core/mp_enorm core/statistics core/mersenne_twister core/count_cpu_cores 
         function_objects/psf_interpolators
         profile_fitting/convolver1d profile_fitting/model_object_1d 
         profile_fitting/bootstrap_errors_1d profile_fitting/profilefit_main"""
@@ -840,7 +911,7 @@ profilefit_dbg_objlist = [ env_debug.Object(obj + ".do", src) for (obj,src) in z
 env_1d.Program("profilefit", profilefit_dbg_objlist)
 
 psfconvolve_dbg_objlist = [ env_debug.Object(obj + ".do", src) for (obj,src) in zip(psfconvolve_objs, psfconvolve_sources) ]
-env_debug.Program("psfconvolve", psfconvolve_dbg_objlist)
+env_debug_nofits.Program("psfconvolve", psfconvolve_dbg_objlist)
 
 psfconvolve1d_dbg_objlist = [ env_debug.Object(obj + ".do", src) for (obj,src) in zip(psfconvolve1d_objs, psfconvolve1d_sources) ]
 env_1d.Program("psfconvolve1d", psfconvolve1d_dbg_objlist)

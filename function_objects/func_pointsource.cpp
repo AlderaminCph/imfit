@@ -22,7 +22,7 @@
  *     2 Oct 2017: Created (as modification of func_gaussian.cpp).
  */
 
-// Copyright 2017--2022 by Peter Erwin.
+// Copyright 2017--2023 by Peter Erwin.
 // 
 // This file is part of Imfit.
 // 
@@ -135,16 +135,6 @@ void PointSource::AddPsfInterpolator( PsfInterpolator *theInterpolator )
 }
 
 
-/* ---------------- PUBLIC METHOD: Setup ------------------------------- */
-
-void PointSource::Setup( double params[], int offsetIndex, double xc, double yc )
-{
-  x0 = xc;
-  y0 = yc;
-  I_tot = params[0 + offsetIndex];
-}
-
-
 /* ---------------- PUBLIC METHOD: HasExtraParams ---------------------- */
 
 bool PointSource::HasExtraParams( )
@@ -191,13 +181,22 @@ int PointSource::SetExtraParams( map<string,string>& inputMap )
       return 0;
     }
   }
-//   interpolationType = iter->second;
   extraParamsSet = true;
   inputExtraParams = inputMap;
   
   printf("   PointSource::SetExtraParams -- setting method = %s\n", 
        		interpolationType.c_str());
   return 1;
+}
+
+
+/* ---------------- PUBLIC METHOD: Setup ------------------------------- */
+
+void PointSource::Setup( double params[], int offsetIndex, double xc, double yc )
+{
+  x0 = xc;
+  y0 = yc;
+  I_tot = params[0 + offsetIndex];
 }
 
 

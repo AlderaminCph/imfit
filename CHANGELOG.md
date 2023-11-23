@@ -2,8 +2,16 @@
 
 (Formatting and design based on Olivier Lacan's [Keep a CHANGELOG](http://keepachangelog.com/))
 
-## 1.9.0 -- 2022-xx-xx
+## 1.9.0 -- 2022-11-27
 ### Added:
+
+- Imfit will attempt to identify how many *physical* CPU cores your
+computer has, and then set the number of threads equal to that. In some
+cases (particularly with smaller images), this can make PSF convolution
+faster than the previous default of setting the number of threads equal
+to the number of *logical* cores, which usually includes so-called
+symmetric multithreading (aka "hyperthreading") and turns out to (sometimes)
+make PSF convolutions slower.
 
 - New image function: PointSourceRot. This is identical to PointSource,
 except with an extra "PA" parameter which specifies CCW rotation of the
@@ -15,7 +23,8 @@ after the parameter names (when imfit or makeimage is called with
 "--list-parameters") and after the values (in imfit's output). The
 printing of parameters without units (e.g., ellipticity, Sersic n) is 
 unchanged. (You can optionally add unit strings to the printout for
-your own image functions; this is explained in XXX.)
+your own image functions; this is explained in Section 14 of the 
+Imfit manual.)
 
 - The PointSource (and PointSourceRot) image functions now include the
 option of Lanczos2 instead of the default bicubic interpolation. This
@@ -45,7 +54,7 @@ you decide you specified the model wrong, you forgot to specify a PSF image, etc
 `imfit` now halts, prints the *current* best parameter values, *and*
 saves them in a special output file ("current_parameters_imfit.dat").
 
-- The `--print-fluxes` option for makeimage now automatically turn off
+- The `--print-fluxes` option for makeimage now automatically turns off
 image saving, so you no longer have to *also* specify `--nosave`. (This
 is because, in my experience at least, one almost always uses
 `--print-fluxes` just to see the component fluxes and fractions, and so

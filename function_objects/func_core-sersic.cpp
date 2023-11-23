@@ -1,7 +1,7 @@
-/* FILE: func_sersic.cpp ----------------------------------------------- */
+/* FILE: func_core-sersic.cpp ------------------------------------------ */
 /* 
  *
- *   Function object class for a Sersic function, with constant
+ *   Function object class for a Core-Sersic function, with constant
  * ellipticity and position angle (pure elliptical, not generalized).
  *   
  *   BASIC IDEA:

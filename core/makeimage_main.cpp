@@ -56,6 +56,7 @@
 #include "sample_configs.h"
 #include "psf_oversampling_info.h"
 #include "setup_model_object.h"
+#include "count_cpu_cores.h"
 
 using namespace std;
 
@@ -73,9 +74,9 @@ static string  kNRows = "NROWS";
 
 
 #ifdef USE_OPENMP
-#define VERSION_STRING      "1.9.0-dev (OpenMP-enabled)"
+#define VERSION_STRING      "1.9.0 (OpenMP-enabled)"
 #else
-#define VERSION_STRING      "1.9.0-dev"
+#define VERSION_STRING      "1.9.0"
 #endif
 
 
@@ -121,8 +122,12 @@ int main( int argc, char *argv[] )
 
   
   
-  /* Process command line and parse config file: */
   options = make_shared<MakeimageOptions>();    
+  // Set maximum number of threads = number of hardware cores by default
+  // (user can still override this with --max-threads option)
+  options->maxThreads = GetPhysicalCoreCount();
+  options->maxThreadsSet = true;
+  /* Process command line and parse config file: */
   ProcessInput(argc, argv, options);
 
 #ifdef USE_LOGGING

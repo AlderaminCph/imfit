@@ -74,7 +74,7 @@
 \newcommand{\pmlr}{PMLR}
 
 % Other stuff, including version number
-\newcommand{\versionnum}{1.8.0}
+\newcommand{\versionnum}{1.9.0}
 
 \newcommand{\red}{\textcolor{red}}
 
@@ -156,14 +156,15 @@ distinction should be meaningless. (I.e., in most cases you're using the
 \bigskip
 
 \textbf{System Requirements:} \Imfit{} has been built and tested on
-Intel-based MacOS X (or macOS) 10.8--10.13 (Mountain Lion, Mavericks,
-Yosemite, El Capitan, Sierra, and High Sierra)\footnote{Versions 1.3 and earlier were
-also built for MacOS X 10.6 and 10.7; it's unclear whether the current
-version could still be compiled for those systems.} and Linux (Ubuntu)
-systems. It uses standard C++ or C++11 and should work on most
-Unix-style systems with a modern C++ compiler and the Standard Template
-Library (e.g., \textsc{gcc} v4.8.1 or higher). It relies on three
-external, open-source libraries: version 3 of the \textsc{cfitsio}
+Intel-based MacOS X (or macOS) 10.8--12 (Mountain Lion through
+Monterey)\footnote{Versions 1.3 and earlier were also built for MacOS X
+10.6 and 10.7; it's unclear whether the current version could still be
+compiled for those systems.} and Linux (Ubuntu) systems. The Intel-based
+Mac binary will also run on Apple Silicon (aka arm64) Mac computers via
+the Rosetta 2 facility. It uses standard C++ or C++11 and should work on
+most Unix-style systems with a modern C++ compiler and the Standard
+Template Library (e.g., \textsc{gcc} v4.8.1 or higher). It relies on
+three external, open-source libraries: version 3 of the \textsc{cfitsio}
 library\footnote{\url{https://heasarc.nasa.gov/fitsio/}} for
 \textsc{fits} image I/O, version 3 of the \textsc{fftw} (Fastest Fourier
 Transform in the West) library\footnote{\url{http://www.fftw.org/}} for
@@ -255,7 +256,8 @@ memory), you should build and install the threaded version of
 \textsc{fftw} as well (this will probably involve running its
 ``configure'' script with the \texttt{--enable-threaded} option; see
 the \textsc{fftw} manual for details), since this speeds up PSF convolution
-considerably. Building \textsc{fftw} with SSE2 and AVX support will
+considerably. Building \textsc{fftw} with SSE2 and AVX support -- assuming
+you have an Intel CPU -- will
 provide a $\sim 10$--20\% speedup for PSF convolutions, so that's also
 recommended, though not as strongly.
 
@@ -404,9 +406,9 @@ The standard compiler tools for macOS (formerly Mac OS~X) are those
 which come with Apple's Xcode, which for C and C++ are based on LLVM's
 Clang. (Confusingly, the Clang-based tools include ``\texttt{gcc}'' and
 ``\texttt{g++}'' aliases which are wrappers around \texttt{clang} and
-\texttt{clang++}. To be sure, try \texttt{gcc -v}; if you see something
-like ``Apple LLVM version'', then you know it's really the Clang
-compiler.)
+\texttt{clang++}. To be certain this is the case, try \texttt{gcc -v};
+if you see something like ``Apple LLVM version'', then you know it's
+really the Clang compiler.)
 
 Prior to version 9 of Xcode (introduced in late 2017), the
 Apple-supplied Clang compiler did \textit{not} support OpenMP (even though
@@ -427,7 +429,7 @@ GCC (this should be version 4.8.1 or later), such as those available via
 package managers such as Homebrew or MacPorts. (Note that Homebrew does
 not \textit{replace} the pseudo-``gcc'' and ``g++'' aliases provided by
 Xcode, which will still point to Apple's Clang compilers; instead, it
-installs version-specific names such as ``gcc-9'' and ``g++-9''.)
+installs version-specific names such as ``gcc-12'' and ``g++-12''.)
 Another alternative is to install a version of LLVM/Clang that
 \textit{does} support OpenMP, e.g., from one of the aforementioned
 package managers.
@@ -481,6 +483,9 @@ computation by compiling with the following commands:
 
 \chapter{Trying It Out}
 
+This section has some basic notes on how to use \Imfit; for a somewhat more comprehensive
+introduction, see the online tutorial at \url{https://www.mpe.mpg.de/~erwin/code/imfit/markdown/index.html}.
+
 In the \texttt{examples/} directory are some sample galaxy images, masks, PSF images, and
 configuration files. To give \imfit{} a quick spin (and check that it's working on your system), change to the
 \texttt{examples/} directory and execute the following on the command line (assuming that
@@ -490,8 +495,8 @@ the \imfitprog{} binary is now in your path; if it isn't you can access it via
 \texttt{\$ imfit ic3478rss\_256.fits \texttt{-c} config\_sersic\_ic3478\_256.dat \texttt{--}sky=130.14}
 \end{quote}
 
-This converges to a fit in a few seconds or less (e.g., about 0.5 seconds on a 
-2011 MacBook Pro with a 2.3 GHz Core i7 processor). In addition to being printed to
+This converges to a fit in about a second or less (e.g., about 0.14 seconds on a 
+2019 MacBook Pro with a 2.3 GHz Core i9 processor). In addition to being printed to
 the screen, the final fit is saved in a file called \texttt{bestfit\_parameters\_imfit.dat}.
 
 The preceding command told \imfitprog{} to fit using every pixel in the image and to estimate
@@ -558,8 +563,8 @@ as other file names specified by options discussed below -- can be plain
 filenames in the current working directory, relative paths (e.g.,
 \texttt{data\_dir/image.fits}), or absolute paths.
 
-The ``options'' are a set of command-line flags and options (use ``\imfitprog{} \texttt{-h}''
-or ``\imfitprog{} \texttt{--help}'' to see the complete list). Options must be followed by
+The ``options'' are a set of command-line flags and options; use ``\imfitprog{} \texttt{-h}''
+or ``\imfitprog{} \texttt{--help}'' to see the complete list. Options must be followed by
 an appropriate value (e.g., a filename, an integer, a floating-point number); this can
 be separated from the option by a space, or they can be connected with an equals sign.
 In other words, both of the following are valid:
@@ -623,8 +628,10 @@ noise map are assumed to be Gaussian $\sigma$ values).
 \item \texttt{--errors-are-variances} -- indicates that pixel values in the noise
 map are variances ($\sigma^2$) instead of sigmas.
 \item \texttt{--errors-are-weights} -- indicates that pixel values in the noise
-map should be interpreted as weights (e.g., $1/\sigma^2$), not as sigmas or variances. (None
-of these three options is usable with Cash statistic or Poisson-MLR statistic minimization.)
+map should be interpreted as weights (e.g., $1/\sigma^2$), not as sigmas or variances. 
+
+Note that none of these three options is usable with Cash statistic or
+Poisson-MLR statistic minimization.
 
 \bigskip
 
@@ -690,7 +697,7 @@ with \texttt{--nlopt NM}, though it's simpler just to use \texttt{--nm}).
 
 \item \texttt{--model-errors} -- use the model image pixel values
 (instead of the data values) to estimate the individual-pixel dispersions
-$\sigma_{i}$ for \chisquare{} minimization
+$\sigma_{i}$ for \chisquare{} minimization.
 
 \item \texttt{--poisson-mlr} or \texttt{--mlr} -- use the Poisson
 Maximum-Likelihood-Ratio (MLR) statistic for minimization (this is the same as
@@ -708,16 +715,16 @@ with the (default) Levenberg-Marquardt minimization technique.
 \item \texttt{--ftol} \textit{FTOL-value} -- specify tolerance for
 fractional improvements in the fit statistic value; if further iterations do 
 not reduce the fit statistic by more than this, the minimization is considered a 
-success and halted (default value = $10^{-8}$)
+success and halted (default value = $10^{-8}$).
 
 \bigskip
 
 \item \texttt{--bootstrap} \textit{n-iterations} -- Do \textit{n-iterations} rounds
 of bootstrap resampling after the fit, to estimate parameter errors.
 
-\item \texttt{--save-bootstrap} \textit{filename} -- file to save
+\item \texttt{--save-bootstrap} \textit{filename} -- file where
 individual best-fit parameter values from the bootstrap resampling (one
-line per iteration).
+line per iteration) will be saved.
 
 \bigskip
 
@@ -739,9 +746,17 @@ evaluated instead.)
 
 \bigskip
 
-\item \texttt{--max-threads} \textit{n-threads} -- specifies the maximum number of CPU cores to use
-during computation (the default is to use \textit{all} available CPU cores); has no
-effect if \imfit{} was compiled without OpenMP or \textsc{fftw} multithreading support.
+\item \texttt{--max-threads} \textit{n-threads} -- specifies the maximum
+number of CPU threads to use during computation (the default is to use
+\textit{all} available CPU threads); has no effect if \imfit{} was
+compiled without OpenMP or \textsc{fftw} multithreading support. For
+best performance with PSF convolution, this should be set = the number
+of physical CPU cores (\textit{not} the number of logical cores). For
+best performance on Apple Silicon computers, this should be set = the
+number of ``performance'' cores. (As of version 1.9, \Imfit{} will
+default to this mode.) You can use this to reduce the number of threads
+that \Imfit{} will use if you want to reduce system load or power consumption,
+at the cost of slower fits.
 
 \item \texttt{--seed} \textit{N} -- specifies a specific integer seed to use with
 random number generation; applies to DE fits and also to bootstrap resampling. This is
@@ -1168,12 +1183,14 @@ image sections in \textsc{iraf}). An example:
 ic3478rss\_256.fits[45:150,200:310]
 \end{quote}
 This will fit columns 45--150 and rows 200--310 of the image (column and
-row numbering starts at~1 and is inclusive, so ``[1:10]'' means column or
-row numbers 1 through 10). Pixel coordinates in the configuration (and
-output) files refer to locations within the \textit{full} image, not
-relative positions within the subsection. Note that this works as-is
-when running \Imfit{} from within the Bash shell; for the C shell, you
-may need to enclose the image name + specification in quotation marks.
+row numbering starts at~1 and is inclusive, so ``[1:10]'' means column
+or row numbers 1 through 10). Pixel coordinates in the configuration
+(and output) files refer to locations within the \textit{full} image,
+not relative positions within the subsection. Note that this works as-is
+when running \Imfit{} from within the Bash shell; for the C and Z
+shells, you need to enclose the image name + specification in quotation
+marks, or (Z shell only, I believe) just precede the entire \imfitprog{} command with
+``\texttt{noglob}''.
 
 The only kind of image section specification that's allowed is a simple
 [x1:x2,y1:y2] format, though you can specify all of a particular dimension using
@@ -1220,15 +1237,14 @@ URLs which point directly to accessible \textsc{fits} files; you cannot
 \section{Masks (and automatic masking of certain pixels)}
 
 A mask image can be supplied to \imfitprog{} by using the command-line
-option \texttt{--mask}. The mask image should be an
-\textit{integer}-valued \textsc{fits} file with the same dimensions as
-the image being fitted (\textsc{iraf} \texttt{.pl} mask files are not
-recognized, but these can be converted to \textsc{fits} format within
-\textsc{iraf}). The default is to treat zero-valued pixels in the mask
-image as \textit{good} and pixels with values $> 0$ as \textit{bad}
-(i.e., to be excluded from the fit); however, you can specify that
-zero-valued pixels are \textit{bad} with the command-line flag
-\texttt{--mask-zero-is-bad}.
+option \texttt{--mask}. The mask image should be a \textsc{fits} file
+with the same dimensions as the image being fitted (\textsc{iraf}
+\texttt{.pl} mask files are not recognized, but these can be converted
+to \textsc{fits} format within \textsc{iraf}). The default is to treat
+zero-valued pixels in the mask image as \textit{good} and pixels with
+values $> 0$ as \textit{bad} (i.e., to be excluded from the fit);
+however, you can specify that zero-valued pixels are \textit{bad} with
+the command-line flag \texttt{--mask-zero-is-bad}.
 
 Any pixels in the data image, the noise/error/weight image (see below),
 \textit{or} the mask image which have non-finite values (i.e., NaN,
@@ -1348,12 +1364,14 @@ E.g., for a $25 \times 25$-pixel PSF, the center should be at $(x,y) =
 (13.0,13.0)$. An off-center PSF can certainly be used, but the resulting
 convolved model images will be shifted! The PSF does \textit{not} need
 to be normalized, as \imfitprog{} will automatically normalize the PSF
-image internally.
+image internally (you can use the ``\texttt{--no-normalize}'' flag to
+tell \imfitprog{} to skip normalizing the PSF).
 
 Although \imfit{} uses a multi-threaded version version of the
 \textsc{fftw} library, which is itself quite fast, adding PSF
 convolution to the image-fitting process \textit{does} slow things down
-considerably.
+considerably. \textbf{See Section~\ref{sec:threading} for notes on how to maximize
+multi-threaded performance with PSF convolution.}
 
 
 \subsection{Convolution with Oversampled PSFs}
@@ -1813,6 +1831,52 @@ analysis using \Imfit{} models.
 \newpage
 
 \chapter{Miscellaneous Notes}
+
+\section{Faster PSF Convolution with Multithreading}\label{sec:threading}
+
+If \imfit{} is compiled with multi-threading support (the default),
+there is a subtle ``gotcha'' when it comes to using PSF convolution. If
+multi-threading is enabled, then by default \imfit{} will choose the
+maximum possible number of threads to use, which is the maximum number
+of hardware threads that the operating system reports. In older
+multi-core CPUs, this is the number of actual (physical) cores on the
+CPU chip (or on all CPU chips if there are multiple CPUs). This is ideal
+for such systems.
+
+However, many modern multi-core CPUs include ``simultaneous
+multithreading'' (called ``hyperthreading'' for Intel CPUs). This
+involves executing multiple (usually 2) threads \textit{per core}, and
+the operating system will usually include this in its hardware thread
+(or ``logical core'') count. (E.g., an 8-core Intel i9 CPU will be
+reported as having 16 threads available, two for each core.)
+
+For computations that \textit{don't} involve PSF convolution, this is
+fine, and the results are (slightly) faster than if one used one thread per
+physical core. However, this does \textit{not} work for PSF convolution:
+the computations can sometimes be \textit{slower} if more threads than
+physical cores are used -- sometimes a factor of several times slower!
+
+A somewhat related problem seems to occur with the new Apple Silicon
+(aka M1, M2) CPUs in modern Mac computers. Although these do
+\textit{not} have simultaneous multithreading, they do have different
+CPU core \textit{types}: half or more of the cores are
+``high-performance'' (fast), while the remainder are ``high-efficiency''
+(useful for low power consumption, but slower).
+
+Because using more threads than there are physical (or high-efficiency) cores
+seems to either be no faster than, or signficantly slower than, using
+the same number of threads as there are physical (or high-efficiency) cores,
+\Imfit{} now (as of version 1.9) defaults to the latter case. (This requires some trickery
+in the case of Linux, as it is not easy for a program to learn how many
+physical cores there are.)
+
+For versions of \Imfit{} prior to 1.9, you should use the
+\texttt{--max-threads} option and set this equal to the number of
+\textit{physical} cores (or high-performance cores on an Apple Silicon
+CPU) on your computer.
+
+
+
 
 \section{Memory Usage}
 
@@ -2609,7 +2673,7 @@ image function takes optional ``meta-parameters'' -- parameters that define
 certain specializations of a function, but which do \textit{not} change
 during a fit. An example is the \texttt{PointSource} function, which has
 an optional meta-parameter (\texttt{mode}) specifying the interpolation
-algorithm to use (bicubic spline (the default) versus Lanczos2).
+algorithm to use (bicubic spline (the default) versus Lanczos2 or Lanczos3).
 
 TBD.
 
@@ -2781,13 +2845,37 @@ which fall within an oversampling region (specified via
 \texttt{--overpsf\_region}) will interpolate the corresponding
 \textit{oversampled} PSF image (specified via \texttt{--overpsf}) instead.
 
-The interpolation is done using the 2D bicubic function
+The interpolation is by default done using the 2D bicubic function
 (\texttt{gsl\_interp2d\_bicubic}) from the GNU Scientific Library.
 
 \begin{verbatim}
 FUNCTION PointSource
 I_tot     # counts
 \end{verbatim}
+
+An alternate interpolation method is Lanczos2, which can be specified
+by using the \textit{optional parameter} specification, like so:
+
+\begin{verbatim}
+FUNCTION PointSource
+I_tot     # counts
+OPTIONAL_PARAMS_START
+method          lanczos2
+OPTIONAL_PARAMS_END
+\end{verbatim}
+
+If you want to use a Lanczos3 kernel, you specify it thus:
+
+\begin{verbatim}
+FUNCTION PointSource
+I_tot     # counts
+OPTIONAL_PARAMS_START
+method          lanczos3
+OPTIONAL_PARAMS_END
+\end{verbatim}
+
+If you want to explicitly specify the (default) bicubic interpolation, you
+can use ''bicubic'' instead of ``lanczos2'' or ``lanczos3''.
 
 
 \subsubsection{PointSourceRot}
@@ -2802,6 +2890,10 @@ FUNCTION PointSourceRot
 I_tot     # counts
 PA
 \end{verbatim}
+
+As with PointSource, you can optionally specify the interpolation method (the
+default bicubic or the alternatives Lanczos2 or Lanczos3); see the description of PointSource
+above for what this looks like.
 
 
 \subsubsection{ModifiedKing}
@@ -3198,9 +3290,22 @@ a_bar
 
 \subsubsection{FlatBar}
 
-TBD.
+This produces a 2D component meant to represent the outer part of a
+typical bar in a massive disk galaxy. Specifically, this is intended to
+model the outer, \textit{vertically thin} part of the bar,
+outside the (vertically thick) boxy/peanut-shaped bulge, when the bar is
+seen close to face-on. This corresponds to the ``spurs'' in the
+terminology of \citet{erwin-debattista13}), and also to the
+``shoulders'' of the bar-major-axis profile as analyzed in
+\citet{anderson22} and \citet{erwin23}.
 
-see \cite{erwin21}, especially Appendix~A.
+Since this is a reflection-symmetric structure, it works best when the
+bar is close to the galaxy major axis \textit{or} the minor axis, or
+when the galaxy is close to face-on; intermediate position angles tend
+to make the projected spurs offset in opposite directions on either side
+of the galaxy center (see discussion in \citealt{erwin-debattista13}).
+
+See \cite{erwin21}, especially Appendix~A, for examples of use.
 
 \begin{verbatim}
 FUNCTION FlatBar
@@ -3303,6 +3408,15 @@ Because this function performs numerical integration for each pixel value, it wi
 slower than the analytic EdgeOnDisk function (though the latter is correct only in
 the $i= 90\arcdeg$ case), and even slower than the standard Exponential function.
 
+Note that one can get an approximate conversion between $J_{0}$ (central luminosity
+density) and the observed central surface brightness $I_{0}$ (e.g., the intensity parameter of
+the 2D Exponential function) in the limit of a face-on disk by assuming a vertical
+exponential profile. In this case, line-of-sight integration along the $z$ axis gives
+\begin{equation}
+I_{0} \; = \; 2 \, J_{0} \, z_{0}.
+\end{equation}
+The central surface brightness will be higher for inclined disks, but this can still be
+used for order-of-magnitude estimates.
 
 
 \subsubsection{BrokenExponentialDisk3D}
@@ -3427,8 +3541,9 @@ Saglia for urging me to implement the Core-S{\'e}rsic function, and to
 Maximilian Fabricius for suggesting improvements to the documentation.
 Additional bug reports and suggestions from Andr{\'e} Luiz de Amorim,
 Giulia Savorgnan, David Streich, Guillermo Barro, Sergio Pascual, Lee
-Kelvin, Colleen Gilhuly, Semyeong Oh, Benne Holwerde, David Wilman, 
-Iskren Georgiev, Corentin Schreiber, and Dan Prole are gratefully appreciated.
+Kelvin, Colleen Gilhuly, Semyeong Oh, Benne Holwerde, David Wilman,
+Iskren Georgiev, Corentin Schreiber, Dan Prole, Alex Borlaff, and Daria
+Kozlova are gratefully appreciated.
 
 
 \section{Data Sources}
@@ -3486,6 +3601,12 @@ population of barred galaxies in the local universe. I. Detection and
 characterisation of bars'', \textit{Astron.\ Astrophys.} \textbf{495}:
 491.
 
+\bibitem[Anderson et al.(2022)]{anderson22} Anderson, S. R., Debattista,
+V. P, Erwin, P., Liddicott, D. J., Deg, N., and Beraldo e Silva, L. 2022,
+``The secular growth of bars revealed by flat (peak + shoulders) density
+profiles'', \textit{Monthly Notices of the Royal Astronomical Society}, 2022,
+\textbf{513:} 1642.
+
 \bibitem[Athanassoula et al.(1990)]{athanassoula90} Athanassoula, E., Morin, S., Wozniak, H.,
 Puy, D., Pierce, M. J., Lombard, J., and Bosma, A. 1990, \textit{Monthly Notices of the Royal
 Astronomical Society} \textbf{245}: 130.
@@ -3513,6 +3634,12 @@ Fourn{\'o}n, and F. S{\'a}nchez, eds., (Cambridge: Cambridge U. Press),
 Pohlen, B., and Beckman, J. E. 2008, ``The Outer Disks of Early-Type Galaxies. I. 
 Surface-Brightness Profiles of Barred Galaxies'', \textit{Astron.J.} \textbf{135}: 20.
 
+\bibitem[Erwin \& Debattista(2013)]{erwin-debattista13} Erwin, P., and
+Debattista, V. P. 2013, ``Peanuts at an Angle: Detecting and
+Measuring the Three-Dimensional Structure of Bars in Moderately Inclined
+Galaxies'', \textit{Monthly Notices of the Royal Astronomical Society}
+\textbf{431}: 3060.
+
 \bibitem[Erwin(2015)]{erwin15} Erwin, P. 2015, ``Imfit: A Fast, Flexible
 New Program for Astronomical Image Fitting'', \textit{Astrophys.J.} \textbf{799:} 226.
 
@@ -3520,6 +3647,11 @@ New Program for Astronomical Image Fitting'', \textit{Astrophys.J.} \textbf{799:
 ``Composite Bulges – II. Classical Bulges and Nuclear Disks in Barred
 Galaxies: The Contrasting Cases of NGC 4608 and NGC 4643'',
 \textit{Monthly Notices of the Royal Astronomical Society}, \textbf{502:} 2446.
+
+\bibitem[Erwin, Debattista, \& Anderson(2023)]{erwin23} Erwin, Peter,
+Debattista, Victor P., and Anderson, S. R. 2023, ``The Profiles of Bars
+in Spiral Galaxies'', \textit{Monthly Notices of the Royal Astronomical
+Society}, submitted.
 
 \bibitem[Ferrers(1877)]{ferrers} Ferrers, N. M. 1877, ``On the
 Potentials of Ellipsoids, Ellipsoidal Shells, Elliptic Laminae, and

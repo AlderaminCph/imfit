@@ -1,30 +1,52 @@
 *** CURRENT WORK
 
-[X] Finish implementing Lanczos2 interpolation in PointSource
-	-- todo_pointsource.txt; ~/python/lanczos_test.py
-	function_objects/psf_interpolators.*
-	
-	[X] Update code in model_object.cpp to handle this
-	[X] Test fitting w/ bicuic vs lanczos2 for star in WFC3-IR image
-	
-	[X] Implement recording of (user-set) optional-param values in output
-
-[X] Fix unittest_add_functions.t.h -- testAddFunctionsToModel_optionalParams
-	-- use an extra-params function properly
-
-
 
 
 ** BUGS TO FIX:
 
-[ ] Imfit on MBPro 2019 is very slow in oversampled-PSF tests (45s for fit
-	vs 3s on MBPro 2017)
-		-- true for all 3 tests (2 with N-M, 1 with L-M)
-		-- progression of actual recorded chi^2 values is identical
+[X] libimfit.a and GetPhysicalCoreCount()
+	-- pyimfit fails to import bcs 
+	ImportError: dlopen(/Users/erwin/coding/pyimfit/pyimfit/pyimfit_lib.cpython-310-darwin.so, 0x0002): symbol not found in flat namespace (__Z20GetPhysicalCoreCountv)
+	This is presumably bcs we aren't including count_cpu_cores.cpp in the object list
+	for compiling libimit.a
+	[x] Figure out where GetPhysicalCoreCount is called
+		-- convolver.cpp
+		-- used in _main.cpp to populate options->maxThreads, passed to SetupModelObject()
+	[ ] Figure out where to add this to PyImfit code
+		SetupModelObject(options, ...)
+			newModelObj->SetMaxThreads(options->maxThreads);
+		
+		pyimfit_lib.pyx
+			ModelObjectWrapper.setMaxThreads
+			[ ] where does this get called?
+
+
+[ ] Fix imfit, makeimage, and imfit-mcmc so they error out if user supplies
+	oversampled PSF(s) but *not* oversampling regions
 
 
 
 ** NEAR-TERM FUTURE TODO:
+
+[ ] Add conditional compilation of Ctrl-C handling (use of stopSignal_flag)
+	-- currently, this causes import failure of pyimfit:
+	ImportError: dlopen(/Users/erwin/coding/pyimfit/pyimfit/pyimfit_lib.cpython-310-darwin.so, 0x0002): symbol not found in flat namespace (_stopSignal_flag)
+
+	[x] ID places where this is used
+		-- imfit_main.cpp, definitions.h, solvers/ DESolver.cpp, mpfit.cpp, nlopt_fit.cpp,
+		nmsimplex_fit.cpp
+	[x] Add flag to SConstruct, used when compiling library
+	[ ] Add #ifdef boundaries for use of stopSignal_flag
+		#ifndef NO_SIGNALS
+		[x] definitions.h
+		[x] imfit_main.cpp
+		[x] solvers/DESolver.cpp
+		[x] solvers/mpfit.cpp
+		[x] solvers/nlopt_fit.cpp
+		[x] solvers/nmsimplex_fit.cpp
+	
+	[ ] Test compilation and import in pyimfit
+
 
 [ ] Start using Github Actions for Continuous Integration
 	-- since Travis CI is not really available to us any more
@@ -37,6 +59,21 @@
 	(spiral arms! ExpDisk3D), add pages with notes and figures and recommendations
 
 
+[ ] Test use of FFTW "measure" option for plans
+	-- can we get meaningful speedups for large image convolution?
+	
+		-- command-line flag
+		-- modify model_object.cpp to pass doFFTWMeasure to psfConvolver->DoFullSetup()
+		
+		-- do some timing tests
+		
+		[later: modify ]
+	[ ] Read FFTW docs to see what we need to add
+	[ ] Figure out what code to test
+		-- psfconvolve?
+		
+
+
 [ ] Add option to skip initial fit in bootstrap resampling
 	-- just use input config file (ideally using values from an actual fit)
 	as starting values for all fits
@@ -47,7 +84,7 @@
 	[ ] locate places in main() to modify
 
 
-[..] Add ability to handle Ctrl-C by exiting gracefully and printing current
+[X] Add ability to handle Ctrl-C by exiting gracefully and printing current
 best fit (and/or write it to a file)
 	https://en.cppreference.com/w/c/program/signal
 	-- We will want to have a compilation flag to turn this on/off (e.g., probably off 
@@ -83,11 +120,11 @@ best fit (and/or write it to a file)
 		-- ~/coding/testing/interrupt_test.cpp
 	
 	[X] Add interrupt-handling code to mpfit.cpp
-	[ ] Add interrupt-handling code to DESolver.cpp (and/or diff_evoln_fit.cpp)
+	[X] Add interrupt-handling code to DESolver.cpp (and/or diff_evoln_fit.cpp)
 	[X] Add interrupt-handling code to nmsimplex_fit.cpp
 	[X] Add interrupt-handling code to nlopt.cpp
 	
-	[ ] Modify code in imfit_main.cpp to save parameters to alternate file *if*
+	[X] Modify code in imfit_main.cpp to save parameters to alternate file *if*
 		user interrupted the fit
 			-- check status of stopSignal_flag
 	
@@ -108,7 +145,7 @@ best fit (and/or write it to a file)
 
 [ ] Update documentation with new functions
 	[X] Add description of GaussianRingAz to imfit_howto
-	[ ] Add description of FlatBar to imfit_howto
+	[X] Add description of FlatBar to imfit_howto
 
 
 
@@ -409,7 +446,7 @@ image (accounting for data image subset, if any)
 
 
 [] Possible improved error reporting
-	[] When negative pixel values are encountered during vetting of input data image,
+	[X] When negative pixel values are encountered during vetting of input data image,
 	mention possibility of missing sky parameter
 
 
@@ -430,6 +467,54 @@ image (accounting for data image subset, if any)
 		-- would require changing modifying SetExtraParams to set up
 		parameter names vector properly, reset nParams; maybe also modifiy
 		GetParameterNames?
+
+**[..] Spline-interpolation of variable ellipticity profile
+	-- See notes/notes_for_variable-ell-pa.txt
+	[X] Locate useful galaxy to experiment on (should have smoothly varying ell --> Abell 150 BCG
+		but ~ constant PA; ideally Sersic rather than Core-Sersic)
+		[X] ? Determine PSF
+		[X] Trial standard Sersic fit
+	[X] Create preliminary image function using Sersic + linear ellipticity interpolation
+	
+	[X] Variable number of parameters (= variable number of interpolation points)
+		-- In imfit's main(), we start figuring out how many free parameters there are
+		after calling AddFunctions; we also compare total number of parameters with
+		number of input parameters (from config file)
+		-- Can we tell VarEll function to set its number of parameters after getting
+		the optional-params input [via call to its SetExtraParams method] so that it 
+		tells the rest of the program how many parameters it *really* needs?
+			[x] OK, SetExtraParams is called from within AddParameters, so that's good
+		
+			main: theModel->GetNParams();
+				ModelObject: return nParamsTot;
+			ModelObject::DefineFunctionSets
+				nParamsTot += nFunctionParams + 2*nFunctionSets;
+			ModelObject::AddFunction
+				  nNewParams = newFunctionObj_ptr->GetNParams();
+				  paramSizes.push_back(nNewParams);
+				  nFunctionParams += nNewParams;
+		OK, looks like it will work:
+		[X] Modify SetExtraParams() to set the number of parameters
+			-- NOTE the following in constructor:   nParams = N_PARAMS;
+			nParams is used:
+				Constructor -- to set up parameterLabels array
+				FunctionObject::GetParameterNames, GetParameterUnits, GetNParams
+		[ ] Enable correct saving of optional params (i.e. N)
+			-- <functionObject>.GetExtraParamsDescription
+			-- currently, best-fit parameter file looks like this (missing the parameter line!)
+			FUNCTION Sersic_VarEll
+			OPTIONAL_PARAMS_START
+			OPTIONAL_PARAMS_END
+
+		[ ] Test fitting of Abell 150 BCG image
+
+
+[ ] Modify --list-parameters output so that it includes OPTIONAL_PARAMS_START/OPTIONAL_PARAMS_END
+blocks
+	-- PointSource, PointSourceRot, Sersic_VarEll
+	-- how do we specify (default?) values? do we need to?
+	-- should we include a comment reminding the use that these do not need to
+	be included?
 
 
 [] Modify handling of oversampled PSF to catch case where user wants entire
@@ -687,6 +772,16 @@ image oversampled
 
 
 ** BUGS FIXED
+
+[X] Imfit on MBPro 2019 is very slow in oversampled-PSF tests (45s for fit
+	vs 3s on MBPro 2017)
+		-- true for all 3 tests (2 with N-M, 1 with L-M)
+		-- progression of actual recorded chi^2 values is identical
+	This is probably due to the problem of using more threads than actual cores
+	(via "hyperthreading") when doing FFT
+
+[X] Fix unittest_add_functions.t.h -- testAddFunctionsToModel_optionalParams
+	-- use an extra-params function properly
 
 [X] Fix image-comparison regression tests
 	OK, the weird case is biggertest.fits, which has two (and only two) pixels
@@ -1114,6 +1209,16 @@ OK, here is the problem:
 
 
 ** IMPROVEMENTS APPLIED
+
+(1.9)[X] Finish implementing Lanczos2 interpolation in PointSource
+	-- todo_pointsource.txt; ~/python/lanczos_test.py
+	function_objects/psf_interpolators.*
+	
+	[X] Update code in model_object.cpp to handle this
+	[X] Test fitting w/ bicuic vs lanczos2 for star in WFC3-IR image
+	
+	[X] Implement recording of (user-set) optional-param values in output
+
 
 (1.9)[X] Possible optional parameters for image functions in config file
 	"params"? "settings?"

@@ -8,7 +8,7 @@
  *
  */
 
-// Copyright 2010--2022 by Peter Erwin.
+// Copyright 2010--2023 by Peter Erwin.
 // 
 // This file is part of Imfit.
 // 
@@ -108,6 +108,12 @@
 #include "func_n4608disk.h"
 #include "func_nan.h"
 #include "func_simple-checkerboard.h"
+#include "func_nuker.h"
+#include "func_sersic_var-ell.h"
+#include "func_bpbar3d.h"
+#include "func_double-gaussian.h"
+#include "func_peanut_shashank.h"
+#include "func_peanut_shashank_v2.h"
 #endif
 
 // extra functions useful for e.g. unit tests
@@ -354,6 +360,24 @@ void PopulateFactoryMap( map<string, factory*>& input_factory_map )
 
   SimpleCheckerboard::GetClassShortName(classFuncName);
   input_factory_map[classFuncName] = new funcobj_factory<SimpleCheckerboard>();
+
+  NukerLaw::GetClassShortName(classFuncName);
+  input_factory_map[classFuncName] = new funcobj_factory<NukerLaw>();
+
+  Sersic_VarEll::GetClassShortName(classFuncName);
+  input_factory_map[classFuncName] = new funcobj_factory<Sersic_VarEll>();
+
+  BPBar3D::GetClassShortName(classFuncName);
+  input_factory_map[classFuncName] = new funcobj_factory<BPBar3D>();
+
+  DoubleGaussian::GetClassShortName(classFuncName);
+  input_factory_map[classFuncName] = new funcobj_factory<DoubleGaussian>();
+
+  Peanut::GetClassShortName(classFuncName);
+  input_factory_map[classFuncName] = new funcobj_factory<Peanut>();
+
+  Peanut_v2::GetClassShortName(classFuncName);
+  input_factory_map[classFuncName] = new funcobj_factory<Peanut_v2>();
 
 #endif
 

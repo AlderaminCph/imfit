@@ -33,6 +33,10 @@ can a condensed source-code distribution suitable for local compilations
 and for making your own modifications. The most recent full source-code release can
 be found [here](https://github.com/perwin/imfit/releases/latest).
 
+(Note on pre-compiled binaries: these are compiled as Intel-native binaries. If you
+have an Apple-Silicon-based Mac [a.k.a. M1 or M2], they will run under the Rosetta 2
+emulation system.)
+
 
 <!-- 
 ArXiv version:
@@ -42,7 +46,7 @@ ArXiv version:
 **New:** Preliminary/experimental Python wrapper for Imfit: [PyImfit](https://github.com/perwin/pyimfit)
 
 
-DOI for current release (v1.8.0), archived at Zenodo:
+DOI for current release (v1.9.0), archived at Zenodo:
 
 [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.594956.svg)](https://doi.org/10.5281/zenodo.594956)
 

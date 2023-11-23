@@ -11,7 +11,7 @@
  *    10 Nov--2 Dec 2009: Early stages of development
 */
 
-// Copyright 2009--2022 by Peter Erwin.
+// Copyright 2009--2023 by Peter Erwin.
 // 
 // This file is part of Imfit.
 // 
@@ -70,13 +70,16 @@
 #include "print_results.h"
 #include "estimate_memory.h"
 #include "sample_configs.h"
+#include "count_cpu_cores.h"
 
 using namespace std;
 
 
 /* ---------------- Quasi-Global Variable Definitions ------------------- */
 
+#ifndef NO_SIGNALS
 volatile sig_atomic_t  stopSignal_flag = 0;
+#endif
 
 
 /* ---------------- Definitions & Constants ----------------------------- */
@@ -90,9 +93,9 @@ static string  kOriginalSkyString = "ORIGINAL_SKY";
 
 
 #ifdef USE_OPENMP
-#define VERSION_STRING      "1.9.0-dev (OpenMP-enabled)"
+#define VERSION_STRING      "1.9.0 (OpenMP-enabled)"
 #else
-#define VERSION_STRING      "1.9.0-dev"
+#define VERSION_STRING      "1.9.0"
 #endif
 
 
@@ -162,6 +165,11 @@ int main(int argc, char *argv[])
  
   // ** Define default options, then process the command line
   options = make_shared<ImfitOptions>();
+  // Set maximum number of threads = number of hardware cores by default
+  // (user can still override this with --max-threads option)
+  options->maxThreads = GetPhysicalCoreCount();
+  options->maxThreadsSet = true;
+  /* Process command line and parse config file: */
   ProcessInput(argc, argv, options);
 
   // (Appropriate error messages regarding any missing files will be printed
@@ -378,8 +386,10 @@ int main(int argc, char *argv[])
     							options->verbose, &resultsFromSolver, options->nloptSolverName,
     							options->rngSeed, options->useLHS);
     gettimeofday(&timer_end_fit, NULL);
+#ifndef NO_SIGNALS
     if (stopSignal_flag == 1)
       userInterrupted = true;
+#endif
     							
     PrintResults(paramsVect, theModel, nFreeParams, fitStatus, resultsFromSolver);
   }
@@ -1054,11 +1064,13 @@ void HandleConfigFileOptions( configOptions *configFileOptions,
 
 
 
+#ifndef NO_SIGNALS
 void signal_handler( int signal )
 {
   if (signal == SIGINT)
     stopSignal_flag = 1;
 }
+#endif
 
 
 /* END OF FILE: imfit_main.cpp ------------------------------------------- */
