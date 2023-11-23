@@ -55,6 +55,8 @@
 #include "func_ferrersbar2d.h"
 #include "func_flatsky.h"
 #include "func_tilted-sky-plane.h"
+
+#include "func_expdisk3d_legendre.h"
 // modules requiring GSL:
 //#ifndef NO_GSL
 #include "func_edge-on-disk.h"
@@ -227,6 +229,9 @@ void PopulateFactoryMap( map<string, factory*>& input_factory_map )
 
   ExponentialDisk3D::GetClassShortName(classFuncName);
   input_factory_map[classFuncName] = new funcobj_factory<ExponentialDisk3D>();
+
+  ExponentialDisk3DLegendre::GetClassShortName(classFuncName);
+  input_factory_map[classFuncName] = new funcobj_factory<ExponentialDisk3DLegendre>();
 
   BrokenExponentialDisk3D::GetClassShortName(classFuncName);
   input_factory_map[classFuncName] = new funcobj_factory<BrokenExponentialDisk3D>();

@@ -190,10 +190,10 @@ with OpenMP support).
 #    AVX2  is supported on Intel Haswell and later processors (mostly 2014 onward)
 #    AVX-512  is supported only on "Knights Landing" Xeon Phi processors (2016 onward)
 
-cflags_opt = ["-O3", "-g0", "-fPIC", "-std=c++11"]
+cflags_opt = ["-O3", "-g0", "-fPIC", "-std=c++17"]
 if useVectorExtensions:
     cflags_opt.append("-msse2")
-cflags_db = ["-Wall", "-g3", "-O0", "-fPIC", "-std=c++11", "-Wshadow", 
+cflags_db = ["-Wall", "-g3", "-O0", "-fPIC", "-std=c++17", "-Wshadow", 
                 "-Wredundant-decls", "-Wpointer-arith"]
 
 base_defines = ["ANSI", "USING_SCONS"]
@@ -604,6 +604,8 @@ functionobject_obj_string += " func_gaussianring3d"  # requires integrator
 functionobject_obj_string += " func_ferrersbar3d"  # requires integrator
 functionobject_obj_string += " func_pointsource"
 functionobject_obj_string += " func_pointsource-rot"
+functionobject_obj_string += " func_expdisk3d_legendre"
+
 if useExtraFuncs:
     # experimental extra functions for personal testing
     functionobject_obj_string += " func_broken-exp-bar"

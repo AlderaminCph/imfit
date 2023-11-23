@@ -339,7 +339,8 @@ int SaveVectorAsImage( double *pixelVector, const std::string filename, int nCol
   finalFilename += filename;
   fits_create_file(&imfile_ptr, finalFilename.c_str(), &status);
   /* Create the primary image (single-precision floating-point format) */
-  fits_create_img(imfile_ptr, FLOAT_IMG, 2, naxes, &status);
+  //fits_create_img(imfile_ptr, FLOAT_IMG, 2, naxes, &status);
+  fits_create_img(imfile_ptr, DOUBLE_IMG, 2, naxes, &status);
   
   // Insert keyword writing here ...
   if (comments.size() > 0) {

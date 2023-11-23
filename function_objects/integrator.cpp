@@ -37,7 +37,7 @@
 #include "integrator.h"
 
 #define LIMIT_SIZE   1000
-#define RELATIVE_TOL  1.0e-6
+#define RELATIVE_TOL  1.0e-8
 
 double  Integrate( gsl_function F, double s1, double s2 )
 {
